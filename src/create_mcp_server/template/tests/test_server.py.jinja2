@@ -1,0 +1,105 @@
+"""
+Tests for the {{ server_name }} MCP server.
+
+Note: These tests focus on server functionality and MCP protocol compliance.
+"""
+
+import pytest
+from unittest.mock import patch
+from mcp.types import Resource, TextContent
+from pydantic import AnyUrl
+from {{ server_name.replace('-', '_') }}.server import server, notes
+
+def test_server_initialization():
+    """Test server initialization."""
+    assert server.name == "{{ server_name }}"
+
+@pytest.mark.asyncio
+async def test_list_empty_resources():
+    """Test listing resources when no notes exist."""
+    resources = await server.handle_list_resources()
+    assert isinstance(resources, list)
+    assert len(resources) == 0
+
+@pytest.mark.asyncio
+async def test_add_note_and_list_resources():
+    """Test adding a note and then listing it as a resource."""
+    # First add a note using the tool
+    result = await server.handle_call_tool("add-note", {
+        "name": "test-note",
+        "content": "This is a test note"
+    })
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert "Added note 'test-note'" in result[0].text
+
+    # Then verify it appears in resources
+    resources = await server.handle_list_resources()
+    assert len(resources) == 1
+    resource = resources[0]
+    assert isinstance(resource, Resource)
+    assert resource.name == "Note: test-note"
+    assert resource.mimeType == "text/plain"
+    assert isinstance(resource.uri, AnyUrl)
+    assert resource.uri.scheme == "note"
+
+@pytest.mark.asyncio
+async def test_read_resource():
+    """Test reading a note resource."""
+    # First add a note
+    note_content = "This is a test note"
+    await server.handle_call_tool("add-note", {
+        "name": "test-note",
+        "content": note_content
+    })
+
+    # Then read it back
+    content = await server.handle_read_resource(AnyUrl("note://internal/test-note"))
+    assert content == note_content
+
+@pytest.mark.asyncio
+async def test_invalid_resource_uri():
+    """Test reading a resource with invalid URI."""
+    with pytest.raises(ValueError) as exc_info:
+        await server.handle_read_resource(AnyUrl("http://invalid/uri"))
+    assert "Unsupported URI scheme" in str(exc_info.value)
+
+@pytest.mark.asyncio
+async def test_list_prompts():
+    """Test listing available prompts."""
+    prompts = await server.handle_list_prompts()
+    assert isinstance(prompts, list)
+    assert len(prompts) == 1
+    prompt = prompts[0]
+    assert prompt.name == "summarize-notes"
+    assert len(prompt.arguments) == 1
+    assert prompt.arguments[0].name == "style"
+
+@pytest.mark.asyncio
+async def test_get_prompt():
+    """Test getting a prompt with different styles."""
+    # Add some test notes first
+    await server.handle_call_tool("add-note", {"name": "note1", "content": "Content 1"})
+    await server.handle_call_tool("add-note", {"name": "note2", "content": "Content 2"})
+
+    # Test brief style
+    result = await server.handle_get_prompt("summarize-notes", {"style": "brief"})
+    assert isinstance(result.messages, list)
+    assert len(result.messages) == 1
+    assert "Content 1" in result.messages[0].content.text
+    assert "Content 2" in result.messages[0].content.text
+
+    # Test detailed style
+    result = await server.handle_get_prompt("summarize-notes", {"style": "detailed"})
+    assert "Give extensive details" in result.messages[0].content.text
+
+@pytest.mark.asyncio
+async def test_invalid_prompt():
+    """Test getting an invalid prompt."""
+    with pytest.raises(ValueError) as exc_info:
+        await server.handle_get_prompt("invalid-prompt", {})
+    assert "Unknown prompt" in str(exc_info.value)
+
+def test_cleanup():
+    """Clean up the notes after tests."""
+    notes.clear()
