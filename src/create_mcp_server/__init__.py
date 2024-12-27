@@ -136,7 +136,13 @@ def copy_template(
         ("__init__.py.jinja2", "__init__.py", target_dir),
         ("server.py.jinja2", "server.py", target_dir),
         ("README.md.jinja2", "README.md", path),
+        # Add test template
+        ("tests/test_server.py.jinja2", "tests/test_server.py", path),
     ]
+
+    # Create tests directory if it doesn't exist
+    tests_dir = path / "tests"
+    tests_dir.mkdir(exist_ok=True)
 
     pyproject = PyProject(path / "pyproject.toml")
     bin_name = pyproject.first_binary
@@ -155,6 +161,8 @@ def copy_template(
             rendered = template.render(**template_vars)
 
             out_path = output_dir / output_file
+            # Ensure parent directories exist
+            out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(rendered)
 
     except Exception as e:
