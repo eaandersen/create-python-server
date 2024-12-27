@@ -133,28 +133,25 @@ def copy_template(
 
     env = Environment(loader=FileSystemLoader(str(template_dir)))
 
-    files = [
-        ("__init__.py.jinja2", "__init__.py", target_dir),
-        ("server.py.jinja2", "server.py", target_dir),
-        ("README.md.jinja2", "README.md", path),
-        # Add test template
-        ("tests/test_server.py.jinja2", "tests/test_server.py", path),
-    ]
-
     # Create tests directory if it doesn't exist
     tests_dir = path / "tests"
     tests_dir.mkdir(exist_ok=True)
 
-    pyproject = PyProject(path / "pyproject.toml")
-    bin_name = pyproject.first_binary
-
     template_vars = {
-        "binary_name": bin_name,
+        "binary_name": name.replace("-", "_"),  # Use name instead of reading pyproject
         "server_name": name,
         "server_version": version,
         "server_description": description,
         "server_directory": str(path.resolve()),
     }
+
+    files = [
+        ("__init__.py.jinja2", "__init__.py", target_dir),
+        ("server.py.jinja2", "server.py", target_dir),
+        ("README.md.jinja2", "README.md", path),
+        ("pyproject.toml.jinja2", "pyproject.toml", path),
+        ("tests/test_server.py.jinja2", "tests/test_server.py", path),
+    ]
 
     try:
         for template_file, output_file, output_dir in files:
@@ -172,73 +169,75 @@ def copy_template(
 
 
 def create_project(
-    path: Path, name: str, description: str, version: str, use_claude: bool = True
+    path: Path,
+    name: str,
+    description: str,
+    version: str = "0.1.0",
+    claudeapp: bool = True,
 ) -> None:
-    """Create a new project using uv"""
-    path.mkdir(parents=True, exist_ok=True)
-
+    """Create a new project at the given path"""
     try:
+        # Create project directory first
+        path.mkdir(parents=True, exist_ok=True)
+        click.echo(f"Created project directory at {path}")
+
+        # Create src directory and package directory
+        src_dir = path / "src"
+        package_dir = src_dir / name.replace("-", "_")
+        src_dir.mkdir(exist_ok=True, parents=True)
+        package_dir.mkdir(exist_ok=True)
+        (package_dir / "__init__.py").touch()
+        click.echo(f"Created package directory at {package_dir}")
+
+        # Copy template files
+        click.echo("Copying template files...")
+        copy_template(path, name, description, version)
+        click.echo("Template files copied")
+
+        # Create venv in .venv directory
+        venv_path = path / ".venv"
+        click.echo(f"Creating venv at {venv_path}")
         subprocess.run(
-            ["uv", "init", "--name", name, "--package", "--app", "--quiet"],
+            [
+                "uv",
+                "venv",
+                str(venv_path),
+            ],
+            check=True,
+        )
+        click.echo("Venv created")
+
+        # Activate venv by modifying PATH and VIRTUAL_ENV
+        if os.name == "nt":  # Windows
+            os.environ["PATH"] = f"{venv_path}\\Scripts;{os.environ['PATH']}"
+        else:  # Unix
+            os.environ["PATH"] = f"{venv_path}/bin:{os.environ['PATH']}"
+        os.environ["VIRTUAL_ENV"] = str(venv_path)
+
+        # Install dependencies in activated venv
+        click.echo("Installing dependencies...")
+        subprocess.run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "-e",
+                ".",
+                "mcp @ git+https://github.com/modelcontextprotocol/python-sdk.git@v1.2.0rc1",
+                "pytest>=7.4.0",
+                "pytest-asyncio>=0.21.1",
+            ],
             cwd=path,
             check=True,
         )
-    except subprocess.CalledProcessError:
-        click.echo("❌ Error: Failed to initialize project.", err=True)
+
+        click.echo(f"\n✨ Created project {name} at {path}")
+
+    except subprocess.CalledProcessError as e:
+        click.echo(f"❌ Error: Command failed: {e}", err=True)
         sys.exit(1)
-
-    # Add mcp dependency using uv add
-    try:
-        subprocess.run(["uv", "add", "mcp"], cwd=path, check=True)
-    except subprocess.CalledProcessError:
-        click.echo("❌ Error: Failed to add mcp dependency.", err=True)
-        sys.exit(1)
-
-    copy_template(path, name, description, version)
-
-    # Check if Claude.app is available
-    if (
-        use_claude
-        and has_claude_app()
-        and click.confirm(
-            "\nClaude.app detected. Would you like to install the server into Claude.app now?",
-            default=True,
-        )
-    ):
-        update_claude_config(name, path)
-
-    relpath = path.relative_to(Path.cwd())
-    click.echo(f"✅ Created project {name} in {relpath}")
-    click.echo("ℹ️ To install dependencies run:")
-    click.echo(f"   cd {relpath}")
-    click.echo("   uv sync --dev --all-extras")
-
-
-def update_pyproject_settings(
-    project_path: Path, version: str, description: str
-) -> None:
-    """Update project version and description in pyproject.toml"""
-    import toml
-
-    pyproject_path = project_path / "pyproject.toml"
-
-    if not pyproject_path.exists():
-        click.echo("❌ Error: pyproject.toml not found", err=True)
-        sys.exit(1)
-
-    try:
-        pyproject = toml.load(pyproject_path)
-
-        if version is not None:
-            pyproject["project"]["version"] = version
-
-        if description is not None:
-            pyproject["project"]["description"] = description
-
-        pyproject_path.write_text(toml.dumps(pyproject))
-
     except Exception as e:
-        click.echo(f"❌ Error updating pyproject.toml: {e}", err=True)
+        click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)
 
 
@@ -396,7 +395,6 @@ def main(
         os.chdir(workspace_root)  # Add this line
 
         create_project(project_path, name, description, version, claudeapp)
-        update_pyproject_settings(project_path, version, description)
 
         return 0
 
