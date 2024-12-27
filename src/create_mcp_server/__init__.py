@@ -3,6 +3,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+import os
 
 import click
 import toml
@@ -264,6 +265,35 @@ def check_package_name(name: str) -> bool:
     return True
 
 
+def find_workspace_root() -> Path:
+    """
+    Find the workspace root directory.
+
+    Looks for the main git repository root, ignoring submodules.
+
+    Returns:
+        Path: The workspace root directory
+    Raises:
+        ValueError: If not in a git repository
+    """
+    current = Path.cwd().resolve()
+
+    # First check if we're already at root
+    if (current / ".git").is_dir():
+        return current
+
+    # If not, walk up the directory tree
+    while current != current.parent:
+        git_path = current / ".git"
+        if git_path.is_dir():
+            return current
+        current = current.parent
+
+    raise ValueError(
+        "Not in a git repository. Please run from within a version-controlled workspace."
+    )
+
+
 @click.command()
 @click.option(
     "--path",
@@ -334,29 +364,42 @@ def main(
             )
             return 1
 
-    # Default to 'servers' directory if path not specified
-    if path is None:
-        servers_dir = Path.cwd() / "servers"
-        servers_dir.mkdir(exist_ok=True)  # Create servers directory if it doesn't exist
-        project_path = servers_dir / name
-    else:
-        project_path = path
+    try:
+        # Find workspace root and set default path
+        workspace_root = find_workspace_root()
 
-    # Ask the user if the path is correct if not specified on command line
-    if path is None:
-        click.echo(f"Project will be created at: {project_path}")
-        if not click.confirm("Is this correct?", default=True):
-            project_path = Path(
-                click.prompt("Enter the correct path", type=click.Path(path_type=Path))
-            )
+        # Default to 'servers' directory if path not specified
+        if path is None:
+            servers_dir = workspace_root / "servers"
+            servers_dir.mkdir(exist_ok=True)
+            project_path = servers_dir.resolve() / name  # Use resolved path
+        else:
+            project_path = path
 
-    if project_path is None:
-        click.echo("❌ Error: Invalid path. Project creation aborted.", err=True)
+        # Ask the user if the path is correct if not specified on command line
+        if path is None:
+            click.echo(f"Project will be created at: {project_path}")
+            if not click.confirm("Is this correct?", default=True):
+                project_path = Path(
+                    click.prompt(
+                        "Enter the correct path", type=click.Path(path_type=Path)
+                    )
+                )
+
+        if project_path is None:
+            click.echo("❌ Error: Invalid path. Project creation aborted.", err=True)
+            return 1
+
+        project_path = project_path.resolve()  # Ensure absolute path
+
+        # Change to workspace root before creating project
+        os.chdir(workspace_root)  # Add this line
+
+        create_project(project_path, name, description, version, claudeapp)
+        update_pyproject_settings(project_path, version, description)
+
+        return 0
+
+    except ValueError as e:
+        click.echo(f"❌ Error: {e}", err=True)
         return 1
-
-    project_path = project_path.resolve()
-
-    create_project(project_path, name, description, version, claudeapp)
-    update_pyproject_settings(project_path, version, description)
-
-    return 0
