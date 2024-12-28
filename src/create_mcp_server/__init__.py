@@ -8,6 +8,7 @@ import os
 import click
 import toml
 from packaging.version import parse
+from faker import Faker
 
 MIN_UV_VERSION = "0.4.10"
 
@@ -293,6 +294,59 @@ def find_workspace_root() -> Path:
     )
 
 
+def generate_server_name():
+    """Generate a creative server name."""
+    fake = Faker()
+
+    # List of interesting prefixes using available providers
+    prefixes = [
+        fake.color_name().lower(),  # e.g., 'blue', 'crimson'
+        fake.word().lower(),  # e.g., 'dynamic', 'quantum'
+        fake.company().split()[0].lower(),  # e.g., 'micro', 'global'
+    ]
+
+    # List of interesting suffixes
+    suffixes = [
+        "hub",
+        "node",
+        "core",
+        "edge",
+        "gate",
+        "link",
+        "port",
+        "base",
+    ]
+
+    # Pick random elements
+    prefix = fake.random_element(prefixes)
+    suffix = fake.random_element(suffixes)
+
+    # Clean up and combine
+    name = f"{prefix}-{suffix}".replace(" ", "-")
+    return name
+
+
+def validate_name(ctx, param, value):
+    """Validate and normalize the server name."""
+    # Generate name if none provided
+    if not value:
+        value = generate_server_name()
+        click.echo(f"Generated server name: {value}")
+
+    # Strip existing prefix if present
+    if value.startswith("server-"):
+        value = value[7:]
+
+    # Validate the base name
+    if not re.match(r"^[a-zA-Z][-a-zA-Z0-9_]+$", value):
+        raise click.BadParameter(
+            "Server name must start with a letter and contain only letters, numbers, hyphens, and underscores"
+        )
+
+    # Return with prefix
+    return f"server-{value}"
+
+
 @click.command()
 @click.option(
     "--path",
@@ -302,7 +356,8 @@ def find_workspace_root() -> Path:
 @click.option(
     "--name",
     type=str,
-    help="Project name",
+    help="Project name (will be prefixed with 'server-'). Leave empty for auto-generation.",
+    callback=validate_name,
 )
 @click.option(
     "--version",

@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from mcp.types import Resource, TextContent
 from pydantic import AnyUrl
-from {{ server_directory }}.server import (
+from {{ server_name.replace("-", "_") }}.server import (
     handle_list_resources,
     handle_call_tool,
     handle_read_resource,
