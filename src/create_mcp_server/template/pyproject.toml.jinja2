@@ -1,17 +1,27 @@
 [project]
-name = "{{ server_name }}"
-version = "{{ server_version }}"
-description = "{{ server_description }}"
+name = "{{server_name}}"
+version = "{{server_version}}"
+description = "{{server_description}}"
+authors = [
+    {name = "Eric Axel Andersen", email = "eric.axel@greydataexplorer.dev"}
+]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp @ git+https://github.com/modelcontextprotocol/python-sdk.git@v1.2.0rc1"
+    "mcp @ git+https://github.com/modelcontextprotocol/python-sdk.git@v1.2.0rc1",
+    "pydantic==2.10.4",
+    "loguru==0.7.3"
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.1",
+    "pytest==7.4.4",
+    "pytest-asyncio==0.23.8",
+    "black==23.12.1",
+    "pylint==3.0.3"
 ]
 
 [build-system]
@@ -19,8 +29,20 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-asyncio_mode = "strict"
-testpaths = ["tests"]
+asyncio_mode = "auto"
 
-[tool.hatch.metadata]
-allow-direct-references = true
+[tool.black]
+line-length = 88
+target-version = ['py312']
+include = '\.pyi?$'
+
+[tool.pylint.messages_control]
+disable = [
+    "C0111",  # missing-docstring
+    "C0103",  # invalid-name
+    "C0330",  # bad-continuation
+    "C0326"   # bad-whitespace
+]
+
+[tool.pylint.format]
+max-line-length = 88

@@ -148,6 +148,7 @@ def copy_template(
 
     files = [
         ("__init__.py.jinja2", "__init__.py", target_dir),
+        ("__main__.py.jinja2", "__main__.py", target_dir),
         ("server.py.jinja2", "server.py", target_dir),
         ("README.md.jinja2", "README.md", path),
         ("pyproject.toml.jinja2", "pyproject.toml", path),
@@ -177,6 +178,12 @@ def create_project(
     claudeapp: bool = True,
 ) -> None:
     """Create a new project at the given path"""
+    # Check if project already exists
+    if path.exists():
+        click.echo(f"\n❌ Error: Project directory already exists at {path}")
+        click.echo("Please choose a different name or remove the existing directory.")
+        sys.exit(1)
+
     try:
         # Create project directory first
         path.mkdir(parents=True, exist_ok=True)
