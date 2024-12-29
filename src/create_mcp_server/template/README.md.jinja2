@@ -5,64 +5,72 @@
 ## Setup
 
 1. Create and activate virtual environment:
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-```
+
+    ```bash
+    python -m venv .venv
+    .venv\Scripts\activate
+    ```
 
 2. Install dependencies:
-```bash
-pip install -e .
-```
+
+    ```bash
+    uv pip install -e .
+    ```
 
 3. Run tests:
-```bash
-pytest tests/
-```
+
+    ```bash
+    pytest tests/
+    ```
 
 ## Features
 
 ### Tools
+
 - `add-note`: Add a new note with name and content
 
 ### Resources
+
 - List available notes
 - Read note content via `note://` URI scheme
 
 ### Prompts
+
 - `summarize-notes`: Creates a summary of all notes
   - Optional `style` parameter: "brief" or "detailed"
 
 ## Usage
 
 1. Configure in Cline settings:
-```json
-{
-  "mcpServers": {
-    "{{server_name}}": {
-      "command": "path/to/.venv/Scripts/python.exe",
-      "args": ["-m", "{{server_name}}"],
-      "cwd": "path/to/src",
-      "env": {},
-      "description": "{{server_description}}",
-      "tools": [
-        "add-note - Add a new note"
-      ]
+
+    ```json
+    {
+      "mcpServers": {
+        "{{server_name}}": {
+          "command": "path/to/.venv/Scripts/python.exe",
+          "args": ["-m", "{{binary_name}}"],
+          "cwd": "path/to/src",
+          "env": {},
+          "description": "{{server_description}}",
+          "tools": [
+            "add-note - Add a new note"
+          ]
+        }
+      }
     }
-  }
-}
-```
+    ```
 
 2. Test with Claude:
-```
-@Claude Let's test the notes server:
-1. Add a new note
-2. List available notes
-3. Get a summary
-```
+
+    ```claude
+    @Claude Let's test the notes server:
+    1. Add a new note
+    2. List available notes
+    3.
+    ```
 
 ## Development
 
-- Source code in `src/{{server_name}}/`
+- Source code in `src/{{binary_name}}/`
 - Tests in `tests/`
 - Python 3.12+ required
